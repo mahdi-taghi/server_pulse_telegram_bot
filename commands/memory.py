@@ -13,8 +13,7 @@ async def get_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
             username=SSH_USER,
             password=SSH_PASSWORD
         )
-
-        stdin, stdout, stderr = ssh.exec_command("free -m | grep Mem")
+        _, stdout, _ = ssh.exec_command("free -m | grep Mem")
         mem_line = stdout.read().decode()
         ssh.close()
 
@@ -24,8 +23,7 @@ async def get_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
         usage_percent = (used / total) * 100
 
         await update.message.reply_text(
-            f"📊 Memory Usage:\nUsed: {used} MB\nTotal: {total} MB\nPercent: {usage_percent:.2f}%"
+            f"Memory Usage:\nUsed: {used} MB\nTotal: {total} MB\nPercent: {usage_percent:.2f}%"
         )
-
     except Exception as e:
-        await update.message.reply_text(f"❌ Exception: {e}")
+        await update.message.reply_text(f"Exception: {e}")

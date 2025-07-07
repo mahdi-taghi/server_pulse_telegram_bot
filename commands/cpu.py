@@ -14,8 +14,7 @@ async def get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             username=SSH_USER,
             password=SSH_PASSWORD
         )
-
-        stdin, stdout, stderr = ssh.exec_command("top -bn1 | grep 'Cpu(s)'")
+        _, stdout, _ = ssh.exec_command("top -bn1 | grep 'Cpu(s)'")
         cpu_line = stdout.read().decode()
         ssh.close()
 
