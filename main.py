@@ -17,10 +17,10 @@ from commands.config import TELEGRAM_TOKEN
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        ["/cpu", "/memory"],
-        ["/getlog", "/addserver"],
-        ["/myservers", "/deleteserver"],
-        ['/start', '/cancel']
+        ["cpu", "memory"],
+        ["getlog", "addserver"],
+        ["myservers", "deleteserver"],
+        ["start", "cancel"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
@@ -32,7 +32,10 @@ def main():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("addserver", start_add_server)],
+        entry_points=[
+            CommandHandler("addserver", start_add_server),
+            MessageHandler(filters.TEXT & filters.Regex("^addserver$"), start_add_server)
+        ],
         states={
             0: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_server_name)],
             1: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_ip)],
@@ -43,7 +46,10 @@ def main():
     )
 
     getlog_conv = ConversationHandler(
-        entry_points=[CommandHandler("getlog", start_get_log)],
+        entry_points=[
+            CommandHandler("getlog", start_get_log),
+            MessageHandler(filters.TEXT & filters.Regex("^getlog$"), start_get_log)
+        ],
         states={
             SELECT_LOG: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_get_log)],
         },
@@ -51,7 +57,10 @@ def main():
     )
 
     delete_conv = ConversationHandler(
-        entry_points=[CommandHandler("deleteserver", start_delete_server)],
+        entry_points=[
+            CommandHandler("deleteserver", start_delete_server),
+            MessageHandler(filters.TEXT & filters.Regex("^deleteserver$"), start_delete_server)
+        ],
         states={
             SELECT_DELETE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_delete_server)],
         },
@@ -59,7 +68,10 @@ def main():
     )
 
     cpu_conv = ConversationHandler(
-        entry_points=[CommandHandler("cpu", start_get_cpu)],
+        entry_points=[
+            CommandHandler("cpu", start_get_cpu),
+            MessageHandler(filters.TEXT & filters.Regex("^cpu$"), start_get_cpu)
+        ],
         states={
             SELECT_CPU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_get_cpu)],
         },
@@ -67,7 +79,10 @@ def main():
     )
 
     memory_conv = ConversationHandler(
-        entry_points=[CommandHandler("memory", start_get_memory)],
+        entry_points=[
+            CommandHandler("memory", start_get_memory),
+            MessageHandler(filters.TEXT & filters.Regex("^memory$"), start_get_memory)
+        ],
         states={
             SELECT_MEMORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_get_memory)],
         },
@@ -75,7 +90,12 @@ def main():
     )
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^start$"), start))
     app.add_handler(CommandHandler("myservers", list_servers))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^myservers$"), list_servers))
+    app.add_handler(CommandHandler("cancel", cancel))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^cancel$"), cancel))
+
     app.add_handler(conv_handler)
     app.add_handler(getlog_conv)
     app.add_handler(delete_conv)
