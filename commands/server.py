@@ -1,13 +1,21 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
-from commands.db import add_server, get_servers_by_user, get_full_servers_by_user, delete_server_by_index
+from commands.db import (
+    add_server,
+    get_servers_by_user,
+    get_full_servers_by_user,
+    delete_server_by_index,
+    get_servers_with_ids,
+    set_default_server,
+    get_default_server,
+)
 import paramiko
 
 SERVER_NAME, IP, USERNAME, PASSWORD = range(4)
 SELECT_LOG, SELECT_DELETE = range(2)
 user_inputs = {}
 SELECT_CPU, SELECT_MEMORY = range(4, 6)
-
+SELECT_DEFAULT = 6
 async def start_add_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Please enter a name for your server:")
     return SERVER_NAME
@@ -56,6 +64,21 @@ async def list_servers(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_get_log(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    default = get_default_server(user_id)
+    if default:
+        name, ip, username, password = default
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(hostname=ip, port=22, username=username, password=password)
+            _, stdout, _ = ssh.exec_command("tail -n 30 /var/log/syslog")
+            output = stdout.read().decode()
+            ssh.close()
+            await update.message.reply_text(f"Logs from {name}:\n{output[:4000]}")
+        except Exception as e:
+            await update.message.reply_text(f"Exception:\n{e}")
+        return ConversationHandler.END
+
     servers = get_full_servers_by_user(user_id)
     if not servers:
         await update.message.reply_text("You have no servers saved.")
@@ -113,6 +136,28 @@ async def handle_delete_server(update: Update, context: ContextTypes.DEFAULT_TYP
     return ConversationHandler.END
 async def start_get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    default = get_default_server(user_id)
+    if default:
+        _, ip, username, password = default
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(hostname=ip, port=22, username=username, password=password)
+            _, stdout, _ = ssh.exec_command("top -bn1 | grep 'Cpu(s)'")
+            cpu_line = stdout.read().decode()
+            ssh.close()
+            import re
+            match = re.search(r'(\d+\.\d+)\s*id', cpu_line)
+            if match:
+                idle = float(match.group(1))
+                used = 100 - idle
+                await update.message.reply_text(f"CPU Usage: {used:.2f}%")
+            else:
+                await update.message.reply_text("Could not parse CPU usage.")
+        except Exception as e:
+            await update.message.reply_text(f"Exception:\n{e}")
+        return ConversationHandler.END
+
     servers = get_full_servers_by_user(user_id)
     if not servers:
         await update.message.reply_text("You have no servers saved.")
@@ -152,6 +197,29 @@ async def handle_get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_get_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    default = get_default_server(user_id)
+    if default:
+        _, ip, username, password = default
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(hostname=ip, port=22, username=username, password=password)
+            _, stdout, _ = ssh.exec_command("free -m | grep Mem")
+            mem_line = stdout.read().decode()
+            ssh.close()
+
+            parts = mem_line.split()
+            total = int(parts[1])
+            used = int(parts[2])
+            usage_percent = (used / total) * 100
+
+            await update.message.reply_text(
+                f"Memory Usage:\nUsed: {used} MB\nTotal: {total} MB\nPercent: {usage_percent:.2f}%"
+            )
+        except Exception as e:
+            await update.message.reply_text(f"Exception:\n{e}")
+        return ConversationHandler.END
+
     servers = get_full_servers_by_user(user_id)
     if not servers:
         await update.message.reply_text("You have no servers saved.")
@@ -186,6 +254,32 @@ async def handle_get_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"Memory Usage:\nUsed: {used} MB\nTotal: {total} MB\nPercent: {usage_percent:.2f}%"
         )
+    except Exception as e:
+        await update.message.reply_text(f"Exception:\n{e}")
+    return ConversationHandler.END
+async def start_set_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    servers = get_servers_with_ids(user_id)
+    if not servers:
+        await update.message.reply_text("You have no servers saved.")
+        return ConversationHandler.END
+    context.user_data["servers_with_ids"] = servers
+    message = "Select the server number to set as default:\n\n"
+    for i, (_, name, ip, _, _) in enumerate(servers, 1):
+        message += f"{i}. {name} ({ip})\n"
+    await update.message.reply_text(message)
+    return SELECT_DEFAULT
+
+async def handle_set_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        index = int(update.message.text) - 1
+        servers = context.user_data.get("servers_with_ids", [])
+        if index < 0 or index >= len(servers):
+            await update.message.reply_text("Invalid server number.")
+            return ConversationHandler.END
+        rowid, name, *_ = servers[index]
+        set_default_server(update.effective_user.id, rowid)
+        await update.message.reply_text(f"Default server set to {name}.")
     except Exception as e:
         await update.message.reply_text(f"Exception:\n{e}")
     return ConversationHandler.END
