@@ -4,16 +4,32 @@ from telegram.ext import (
     ConversationHandler, MessageHandler, filters
 )
 from commands.server import (
-    start_add_server, get_server_name, get_ip,
-    get_username, get_password, cancel,
-    list_servers, start_get_log, handle_get_log,
-    start_delete_server, handle_delete_server,
-    start_get_cpu, handle_get_cpu,
-    start_get_memory, handle_get_memory,
-    start_set_default, handle_set_default,
-    SELECT_LOG, SELECT_DELETE,
-    SELECT_CPU, SELECT_MEMORY,
+    start_add_server,
+    get_server_name,
+    get_ip,
+    get_username,
+    get_password,
+    cancel,
+    list_servers,
+    start_get_log,
+    handle_get_log,
+    start_delete_server,
+    handle_delete_server,
+    start_get_cpu,
+    handle_get_cpu,
+    start_get_memory,
+    handle_get_memory,
+    start_set_default,
+    handle_set_default,
+    SELECT_LOG,
+    SELECT_DELETE,
+    SELECT_CPU,
+    SELECT_MEMORY,
     SELECT_DEFAULT,
+    SERVER_NAME,
+    IP,
+    USERNAME,
+    PASSWORD,
 )
 from commands.config import TELEGRAM_TOKEN
 
@@ -40,13 +56,14 @@ def main():
             MessageHandler(filters.TEXT & filters.Regex("^addserver$"), start_add_server)
         ],
         states={
-            0: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_server_name)],
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_ip)],
-            2: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_username)],
-            3: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_password)]
+            SERVER_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_server_name)],
+            IP: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_ip)],
+            USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_username)],
+            PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_password)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+
 
     getlog_conv = ConversationHandler(
         entry_points=[

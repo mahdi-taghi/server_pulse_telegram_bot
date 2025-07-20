@@ -13,37 +13,39 @@ import paramiko
 
 SERVER_NAME, IP, USERNAME, PASSWORD = range(4)
 SELECT_LOG, SELECT_DELETE = range(2)
-user_inputs = {}
 SELECT_CPU, SELECT_MEMORY = range(4, 6)
 SELECT_DEFAULT = 6
 async def start_add_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["user_inputs"] = {}
     await update.message.reply_text("Please enter a name for your server:")
     return SERVER_NAME
 
 async def get_server_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_inputs["server_name"] = update.message.text
+    context.user_data.setdefault("user_inputs", {})["server_name"] = update.message.text
     await update.message.reply_text("Enter the IP address of the server:")
     return IP
 
 async def get_ip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_inputs["ip"] = update.message.text
+    context.user_data.setdefault("user_inputs", {})["ip"] = update.message.text
     await update.message.reply_text("Enter the SSH username:")
     return USERNAME
 
 async def get_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_inputs["username"] = update.message.text
+    context.user_data.setdefault("user_inputs", {})["username"] = update.message.text
     await update.message.reply_text("Enter the SSH password:")
     return PASSWORD
 
 async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_inputs["password"] = update.message.text
+    context.user_data.setdefault("user_inputs", {})["password"] = update.message.text
+    inputs = context.user_data.get("user_inputs", {})
     add_server(
         update.effective_user.id,
-        user_inputs["server_name"],
-        user_inputs["ip"],
-        user_inputs["username"],
-        user_inputs["password"]
+        inputs.get("server_name"),
+        inputs.get("ip"),
+        inputs.get("username"),
+        inputs.get("password")
     )
+    context.user_data.pop("user_inputs", None)
     await update.message.reply_text("Server added successfully.")
     return ConversationHandler.END
 
@@ -61,8 +63,6 @@ async def list_servers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i, (name, ip, username) in enumerate(servers, 1):
         message += f"{i}. Name: {name}\n   IP: {ip}\n   User: {username}\n\n"
     await update.message.reply_text(message[:4000])
-
-
 
 async def start_get_log(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
