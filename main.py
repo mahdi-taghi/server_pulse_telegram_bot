@@ -17,6 +17,7 @@ from commands.server import (
 )
 from commands.config import TELEGRAM_TOKEN
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         ["cpu", "memory"],
