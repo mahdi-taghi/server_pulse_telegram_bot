@@ -1,52 +1,57 @@
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, ContextTypes,
-    ConversationHandler, MessageHandler, filters
+    ConversationHandler, MessageHandler, CallbackQueryHandler, filters
 )
 from commands.server import (
-    start_add_server,
-    get_server_name,
-    get_ip,
-    get_username,
-    get_password,
-    cancel,
-    list_servers,
-    start_get_log,
-    handle_get_log,
-    start_delete_server,
-    handle_delete_server,
-    start_get_cpu,
-    handle_get_cpu,
-    start_get_memory,
-    handle_get_memory,
-    start_set_default,
-    handle_set_default,
-    SELECT_LOG,
-    SELECT_DELETE,
-    SELECT_CPU,
-    SELECT_MEMORY,
-    SELECT_DEFAULT,
-    SERVER_NAME,
-    IP,
-    USERNAME,
-    PASSWORD,
+    start_add_server, get_server_name, get_ip, get_username, get_password,
+    cancel, list_servers, start_get_log, handle_get_log,
+    start_delete_server, handle_delete_server,
+    start_get_cpu, handle_get_cpu,
+    start_get_memory, handle_get_memory,
+    start_set_default, handle_set_default,
+    SELECT_LOG, SELECT_DELETE, SELECT_CPU, SELECT_MEMORY,
+    SELECT_DEFAULT, SERVER_NAME, IP, USERNAME, PASSWORD
 )
 from commands.config import TELEGRAM_TOKEN
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        ["cpu", "memory"],
-        ["getlog", "addserver"],
-        ["myservers", "deleteserver"],
-        ["defaultserver"],
-        ["start", "cancel"]
+        [
+            InlineKeyboardButton("🖥️ Manage Servers", callback_data="manage_servers"),
+            InlineKeyboardButton("📊 Monitor Servers", callback_data="monitor_servers")
+        ]
     ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "Bot is running.\nChoose a command from the buttons below:",
+        "🤖 Bot is running.\nPlease choose an option:",
         reply_markup=reply_markup
     )
+
+
+async def handle_inline_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "manage_servers":
+        keyboard = [
+            ["addserver", "deleteserver"],
+            ["defaultserver", "myservers"],
+            ["start"]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        await query.message.reply_text("🛠 Server Management Options:", reply_markup=reply_markup)
+
+    elif query.data == "monitor_servers":
+        keyboard = [
+            ["getlog", "cpu", "memory"],
+            ["start"]
+        ]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        await query.message.reply_text("📈 Monitoring Options:", reply_markup=reply_markup)
+
+
 def main():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
@@ -63,7 +68,6 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
-
 
     getlog_conv = ConversationHandler(
         entry_points=[
@@ -108,6 +112,7 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+
     default_conv = ConversationHandler(
         entry_points=[
             CommandHandler("defaultserver", start_set_default),
@@ -121,18 +126,20 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^start$"), start))
+    app.add_handler(CallbackQueryHandler(handle_inline_buttons))
     app.add_handler(CommandHandler("myservers", list_servers))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^myservers$"), list_servers))
     app.add_handler(CommandHandler("cancel", cancel))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^cancel$"), cancel))
-
     app.add_handler(conv_handler)
     app.add_handler(getlog_conv)
     app.add_handler(delete_conv)
     app.add_handler(cpu_conv)
     app.add_handler(memory_conv)
     app.add_handler(default_conv)
+
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
