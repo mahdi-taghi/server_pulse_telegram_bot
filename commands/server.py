@@ -15,6 +15,7 @@ SERVER_NAME, IP, USERNAME, PASSWORD = range(4)
 SELECT_LOG, SELECT_DELETE = range(2)
 SELECT_CPU, SELECT_MEMORY, SELECT_DISK = range(4, 7)
 SELECT_DEFAULT = 7
+SELECT_PING = 8
 
 async def start_add_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["user_inputs"] = {}
@@ -344,6 +345,51 @@ async def handle_set_default(update: Update, context: ContextTypes.DEFAULT_TYPE)
         rowid, name, *_ = servers[index]
         set_default_server(update.effective_user.id, rowid)
         await update.message.reply_text(f"Default server set to {name}.")
+    except Exception as e:
+        await update.message.reply_text(f"Exception:\n{e}")
+    return ConversationHandler.END
+async def start_get_ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    default = get_default_server(user_id)
+    if default:
+        _, ip, _, _ = default
+        try:
+            import subprocess
+            result = subprocess.run(["ping", "-c", "4", ip], capture_output=True, text=True)
+            if result.returncode == 0:
+                await update.message.reply_text(f"Ping results for {ip}:\n{result.stdout}")
+            else:
+                await update.message.reply_text(f"Error pinging {ip}:\n{result.stderr}")
+        except Exception as e:
+            await update.message.reply_text(f"Exception:\n{e}")
+        return ConversationHandler.END
+
+    servers = get_full_servers_by_user(user_id)
+    if not servers:
+        await update.message.reply_text("You have no servers saved.")
+        return ConversationHandler.END
+    context.user_data["servers"] = servers
+    message = "Select the server number to ping:\n\n"
+    for i, (name, ip, _, _) in enumerate(servers, 1):
+        message += f"{i}. {name} ({ip})\n"
+    await update.message.reply_text(message)
+    return SELECT_PING
+
+
+async def handle_get_ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        index = int(update.message.text) - 1
+        servers = context.user_data.get("servers", [])
+        if index < 0 or index >= len(servers):
+            await update.message.reply_text("Invalid server number.")
+            return ConversationHandler.END
+        _, ip, _, _ = servers[index]
+        import subprocess
+        result = subprocess.run(["ping", "-c", "4", ip], capture_output=True, text=True)
+        if result.returncode == 0:
+            await update.message.reply_text(f"Ping results for {ip}:\n{result.stdout}")
+        else:
+            await update.message.reply_text(f"Error pinging {ip}:\n{result.stderr}")
     except Exception as e:
         await update.message.reply_text(f"Exception:\n{e}")
     return ConversationHandler.END

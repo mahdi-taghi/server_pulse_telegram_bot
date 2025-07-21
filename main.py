@@ -10,8 +10,9 @@ from commands.server import (
     start_get_cpu, handle_get_cpu,
     start_get_memory, handle_get_memory,
     start_get_disk, handle_get_disk,
+    start_get_ping, handle_get_ping,
     start_set_default, handle_set_default,
-    SELECT_LOG, SELECT_DELETE, SELECT_CPU, SELECT_MEMORY, SELECT_DISK,
+    SELECT_LOG, SELECT_DELETE, SELECT_CPU, SELECT_MEMORY, SELECT_DISK, SELECT_PING,
     SELECT_DEFAULT, SERVER_NAME, IP, USERNAME, PASSWORD
 )
 from commands.config import TELEGRAM_TOKEN
@@ -46,7 +47,7 @@ async def handle_inline_buttons(update: Update, context: ContextTypes.DEFAULT_TY
 
     elif query.data == "monitor_servers":
         keyboard = [
-            ["getlog", "cpu", "memory", "disk"],
+            ["getlog", "cpu", "memory", "disk", "ping"],
             ["start"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -123,6 +124,16 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+    ping_conv = ConversationHandler(
+        entry_points=[
+            CommandHandler("ping", start_get_ping),
+            MessageHandler(filters.TEXT & filters.Regex("^ping$"), start_get_ping)
+        ],
+        states={
+            SELECT_PING: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_get_ping)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
 
     default_conv = ConversationHandler(
         entry_points=[
@@ -148,6 +159,7 @@ def main():
     app.add_handler(cpu_conv)
     app.add_handler(memory_conv)
     app.add_handler(disk_conv)
+    app.add_handler(ping_conv)
     app.add_handler(default_conv)
 
     app.run_polling()
