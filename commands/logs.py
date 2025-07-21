@@ -2,7 +2,10 @@ import paramiko
 from telegram import Update
 from telegram.ext import ContextTypes
 from .db import get_full_servers_by_user
+from .config import SSH_PORT
+from .ratelimit import rate_limit
 
+@rate_limit
 async def get_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         args = context.args
@@ -22,8 +25,7 @@ async def get_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=ip, port=22, username=username, password=password)
-
+        ssh.connect(hostname=ip, port=SSH_PORT, username=username, password=password)
         _, stdout, stderr = ssh.exec_command('tail -n 30 /var/log/syslog')
         output = stdout.read().decode()
         error = stderr.read().decode()

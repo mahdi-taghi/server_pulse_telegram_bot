@@ -3,7 +3,9 @@ from telegram import Update
 from telegram.ext import ContextTypes
 import re
 from .config import SSH_HOST, SSH_PORT, SSH_USER, SSH_PASSWORD
+from .ratelimit import rate_limit
 
+@rate_limit
 async def get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         ssh = paramiko.SSHClient()
@@ -27,3 +29,4 @@ async def get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Could not parse CPU usage.")
     except Exception as e:
         await update.message.reply_text(f"Exception: {e}")
+

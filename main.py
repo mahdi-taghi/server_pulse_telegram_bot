@@ -17,8 +17,9 @@ from commands.server import (
     SELECT_HEALTH, SELECT_DEFAULT, SERVER_NAME, IP, USERNAME, PASSWORD
 )
 from commands.config import TELEGRAM_TOKEN
+from commands.ratelimit import rate_limit
 
-
+@rate_limit
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [
@@ -32,7 +33,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-
+@rate_limit
 async def handle_inline_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()

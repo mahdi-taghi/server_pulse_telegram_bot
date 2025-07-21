@@ -1,5 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
+from .ratelimit import rate_limit
+from .config import SSH_PORT
 from commands.db import (
     add_server,
     get_servers_by_user,
@@ -17,27 +19,27 @@ SELECT_CPU, SELECT_MEMORY, SELECT_DISK = range(4, 7)
 SELECT_DEFAULT = 7
 SELECT_PING = 8
 SELECT_HEALTH = 9
-
+@rate_limit
 async def start_add_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["user_inputs"] = {}
     await update.message.reply_text("Please enter a name for your server:")
     return SERVER_NAME
-
+@rate_limit
 async def get_server_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.setdefault("user_inputs", {})["server_name"] = update.message.text
     await update.message.reply_text("Enter the IP address of the server:")
     return IP
-
+@rate_limit
 async def get_ip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.setdefault("user_inputs", {})["ip"] = update.message.text
     await update.message.reply_text("Enter the SSH username:")
     return USERNAME
-
+@rate_limit
 async def get_username(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.setdefault("user_inputs", {})["username"] = update.message.text
     await update.message.reply_text("Enter the SSH password:")
     return PASSWORD
-
+@rate_limit
 async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.setdefault("user_inputs", {})["password"] = update.message.text
     inputs = context.user_data.get("user_inputs", {})
@@ -51,11 +53,11 @@ async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("user_inputs", None)
     await update.message.reply_text("Server added successfully.")
     return ConversationHandler.END
-
+@rate_limit
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Operation canceled.")
     return ConversationHandler.END
-
+@rate_limit
 async def list_servers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     servers = get_servers_by_user(user_id)
@@ -66,6 +68,7 @@ async def list_servers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i, (name, ip, username) in enumerate(servers, 1):
         message += f"{i}. Name: {name}\n   IP: {ip}\n   User: {username}\n\n"
     await update.message.reply_text(message[:4000])
+@rate_limit
 async def start_delete_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     servers = get_full_servers_by_user(user_id)
@@ -78,7 +81,7 @@ async def start_delete_server(update: Update, context: ContextTypes.DEFAULT_TYPE
         message += f"{i}. {name} ({ip})\n"
     await update.message.reply_text(message)
     return SELECT_DELETE
-
+@rate_limit
 async def handle_delete_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         index = int(update.message.text) - 1
@@ -91,6 +94,7 @@ async def handle_delete_server(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         await update.message.reply_text(f"Exception:\n{e}")
     return ConversationHandler.END
+@rate_limit
 async def start_get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     default = get_default_server(user_id)
@@ -99,7 +103,7 @@ async def start_get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(hostname=ip, port=22, username=username, password=password)
+            ssh.connect(hostname=ip, port=SSH_PORT, username=username, password=password)
             _, stdout, _ = ssh.exec_command("top -bn1 | grep 'Cpu(s)'")
             cpu_line = stdout.read().decode()
             ssh.close()
@@ -125,7 +129,7 @@ async def start_get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += f"{i}. {name} ({ip})\n"
     await update.message.reply_text(message)
     return SELECT_CPU
-
+@rate_limit
 async def handle_get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         index = int(update.message.text) - 1
@@ -136,7 +140,7 @@ async def handle_get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _, ip, username, password = servers[index]
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=ip, port=22, username=username, password=password)
+        ssh.connect(hostname=ip, port=SSH_PORT, username=username, password=password)
         _, stdout, _ = ssh.exec_command("top -bn1 | grep 'Cpu(s)'")
         cpu_line = stdout.read().decode()
         ssh.close()
@@ -150,8 +154,9 @@ async def handle_get_cpu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Could not parse CPU usage.")
     except Exception as e:
         await update.message.reply_text(f"Exception:\n{e}")
-    return ConversationHandler.END
+    return ConversationHandler.END@rate_limit
 
+@rate_limit
 async def start_get_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     default = get_default_server(user_id)
@@ -187,7 +192,7 @@ async def start_get_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += f"{i}. {name} ({ip})\n"
     await update.message.reply_text(message)
     return SELECT_MEMORY
-
+@rate_limit
 async def handle_get_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         index = int(update.message.text) - 1
@@ -214,6 +219,7 @@ async def handle_get_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Exception:\n{e}")
     return ConversationHandler.END
+@rate_limit
 async def start_set_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     servers = get_servers_with_ids(user_id)
@@ -226,6 +232,7 @@ async def start_set_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += f"{i}. {name} ({ip})\n"
     await update.message.reply_text(message)
     return SELECT_DEFAULT
+@rate_limit
 async def start_get_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     default = get_default_server(user_id)
@@ -234,7 +241,7 @@ async def start_get_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(hostname=ip, port=22, username=username, password=password)
+            ssh.connect(hostname=ip, port=SSH_PORT, username=username, password=password)
             _, stdout, _ = ssh.exec_command("df -h / | tail -n 1")
             disk_line = stdout.read().decode()
             ssh.close()
@@ -261,7 +268,7 @@ async def start_get_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += f"{i}. {name} ({ip})\n"
     await update.message.reply_text(message)
     return SELECT_DISK
-
+@rate_limit
 async def handle_get_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         index = int(update.message.text) - 1
@@ -272,7 +279,7 @@ async def handle_get_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _, ip, username, password = servers[index]
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=ip, port=22, username=username, password=password)
+        ssh.connect(hostname=ip, port=SSH_PORT, username=username, password=password)
         _, stdout, _ = ssh.exec_command("df -h / | tail -n 1")
         disk_line = stdout.read().decode()
         ssh.close()
@@ -288,6 +295,7 @@ async def handle_get_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Exception:\n{e}")
     return ConversationHandler.END
+@rate_limit
 async def handle_set_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         index = int(update.message.text) - 1
@@ -301,6 +309,7 @@ async def handle_set_default(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         await update.message.reply_text(f"Exception:\n{e}")
     return ConversationHandler.END
+@rate_limit
 async def start_get_ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     default = get_default_server(user_id)
@@ -328,7 +337,7 @@ async def start_get_ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message)
     return SELECT_PING
 
-
+@rate_limit
 async def handle_get_ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         index = int(update.message.text) - 1
@@ -346,6 +355,7 @@ async def handle_get_ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Exception:\n{e}")
     return ConversationHandler.END
+@rate_limit
 async def start_get_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     default = get_default_server(user_id)
@@ -354,7 +364,7 @@ async def start_get_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(hostname=ip, port=22, username=username, password=password)
+            ssh.connect(hostname=ip, port=SSH_PORT, username=username, password=password)
             _, cpu_stdout, _ = ssh.exec_command("top -bn1 | grep 'Cpu(s)'")
             _, mem_stdout, _ = ssh.exec_command("free -m | grep Mem")
             _, disk_stdout, _ = ssh.exec_command("df -h / | tail -n 1")
@@ -407,7 +417,7 @@ async def start_get_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(message)
     return SELECT_HEALTH
 
-
+@rate_limit
 async def handle_get_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         index = int(update.message.text) - 1
@@ -418,7 +428,7 @@ async def handle_get_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name, ip, username, password = servers[index]
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=ip, port=22, username=username, password=password)
+        ssh.connect(hostname=ip, port=SSH_PORT, username=username, password=password)
         _, cpu_stdout, _ = ssh.exec_command("top -bn1 | grep 'Cpu(s)'")
         _, mem_stdout, _ = ssh.exec_command("free -m | grep Mem")
         _, disk_stdout, _ = ssh.exec_command("df -h / | tail -n 1")
