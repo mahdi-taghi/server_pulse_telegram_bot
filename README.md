@@ -1,5 +1,9 @@
 # Server Logs Telegram Bot
 
+**🔧 Telegram Bot for Monitoring Server Logs via SSH**
+
+You can test the bot here: [@server_pyinsight_bot](https://t.me/server_pyinsight_bot)
+
 This project provides a Telegram bot for reading server logs and basic resource usage via SSH. Server information is stored in an SQLite database.
 
 ## Requirements
