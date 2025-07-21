@@ -13,8 +13,9 @@ import paramiko
 
 SERVER_NAME, IP, USERNAME, PASSWORD = range(4)
 SELECT_LOG, SELECT_DELETE = range(2)
-SELECT_CPU, SELECT_MEMORY = range(4, 6)
-SELECT_DEFAULT = 6
+SELECT_CPU, SELECT_MEMORY, SELECT_DISK = range(4, 7)
+SELECT_DEFAULT = 7
+
 async def start_add_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["user_inputs"] = {}
     await update.message.reply_text("Please enter a name for your server:")
@@ -271,7 +272,68 @@ async def start_set_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += f"{i}. {name} ({ip})\n"
     await update.message.reply_text(message)
     return SELECT_DEFAULT
+async def start_get_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    default = get_default_server(user_id)
+    if default:
+        _, ip, username, password = default
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(hostname=ip, port=22, username=username, password=password)
+            _, stdout, _ = ssh.exec_command("df -h / | tail -n 1")
+            disk_line = stdout.read().decode()
+            ssh.close()
 
+            parts = disk_line.split()
+            total = parts[1]
+            used = parts[2]
+            percent = parts[4]
+
+            await update.message.reply_text(
+                f"Disk Usage:\nUsed: {used}B\nTotal: {total}B\nPercent: {percent}"
+            )
+        except Exception as e:
+            await update.message.reply_text(f"Exception:\n{e}")
+        return ConversationHandler.END
+
+    servers = get_full_servers_by_user(user_id)
+    if not servers:
+        await update.message.reply_text("You have no servers saved.")
+        return ConversationHandler.END
+    context.user_data["servers"] = servers
+    message = "Select the server number to get Disk usage:\n\n"
+    for i, (name, ip, _, _) in enumerate(servers, 1):
+        message += f"{i}. {name} ({ip})\n"
+    await update.message.reply_text(message)
+    return SELECT_DISK
+
+async def handle_get_disk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        index = int(update.message.text) - 1
+        servers = context.user_data.get("servers", [])
+        if index < 0 or index >= len(servers):
+            await update.message.reply_text("Invalid server number.")
+            return ConversationHandler.END
+        _, ip, username, password = servers[index]
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=ip, port=22, username=username, password=password)
+        _, stdout, _ = ssh.exec_command("df -h / | tail -n 1")
+        disk_line = stdout.read().decode()
+        ssh.close()
+
+        parts = disk_line.split()
+        total = parts[1]
+        used = parts[2]
+        percent = parts[4]
+
+        await update.message.reply_text(
+            f"Disk Usage:\nUsed: {used}B\nTotal: {total}B\nPercent: {percent}"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"Exception:\n{e}")
+    return ConversationHandler.END
 async def handle_set_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         index = int(update.message.text) - 1

@@ -9,8 +9,9 @@ from commands.server import (
     start_delete_server, handle_delete_server,
     start_get_cpu, handle_get_cpu,
     start_get_memory, handle_get_memory,
+    start_get_disk, handle_get_disk,
     start_set_default, handle_set_default,
-    SELECT_LOG, SELECT_DELETE, SELECT_CPU, SELECT_MEMORY,
+    SELECT_LOG, SELECT_DELETE, SELECT_CPU, SELECT_MEMORY, SELECT_DISK,
     SELECT_DEFAULT, SERVER_NAME, IP, USERNAME, PASSWORD
 )
 from commands.config import TELEGRAM_TOKEN
@@ -45,7 +46,7 @@ async def handle_inline_buttons(update: Update, context: ContextTypes.DEFAULT_TY
 
     elif query.data == "monitor_servers":
         keyboard = [
-            ["getlog", "cpu", "memory"],
+            ["getlog", "cpu", "memory", "disk"],
             ["start"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -112,6 +113,16 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+    disk_conv = ConversationHandler(
+        entry_points=[
+            CommandHandler("disk", start_get_disk),
+            MessageHandler(filters.TEXT & filters.Regex("^disk$"), start_get_disk)
+        ],
+        states={
+            SELECT_DISK: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_get_disk)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
 
     default_conv = ConversationHandler(
         entry_points=[
@@ -136,6 +147,7 @@ def main():
     app.add_handler(delete_conv)
     app.add_handler(cpu_conv)
     app.add_handler(memory_conv)
+    app.add_handler(disk_conv)
     app.add_handler(default_conv)
 
     app.run_polling()
