@@ -41,15 +41,15 @@ async def handle_inline_buttons(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard = [
             ["addserver", "deleteserver"],
             ["defaultserver", "myservers"],
-            ["start"]
+            ["Menu"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await query.message.reply_text("🛠 Server Management Options:", reply_markup=reply_markup)
 
     elif query.data == "monitor_servers":
         keyboard = [
-            ["health", "cpu", "memory", "disk", "ping"],
-            ["start"]
+            ["ALL", "cpu", "memory", "disk", "ping"],
+            ["Menu"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         await query.message.reply_text("📈 Monitoring Options:", reply_markup=reply_markup)
@@ -75,6 +75,9 @@ def main():
     health_conv = ConversationHandler(
         entry_points=[
             CommandHandler("health", start_get_health),
+                        CommandHandler("all", start_get_health),
+            MessageHandler(filters.TEXT & filters.Regex("(?i)^health$"), start_get_health),
+            MessageHandler(filters.TEXT & filters.Regex("(?i)^all$"), start_get_health),
             MessageHandler(filters.TEXT & filters.Regex("^health$"), start_get_health)
         ],
         states={
@@ -148,7 +151,9 @@ def main():
     )
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^start$"), start))
+    app.add_handler(CommandHandler("menu", start))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^start$"), start))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex("(?i)^menu$"), start))
     app.add_handler(CallbackQueryHandler(handle_inline_buttons))
     app.add_handler(CommandHandler("myservers", list_servers))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^myservers$"), list_servers))

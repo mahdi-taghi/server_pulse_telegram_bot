@@ -380,7 +380,7 @@ async def start_get_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disk_used = disk_parts[2]
             disk_percent = disk_parts[4]
 
-            message = "Server Health:\n"
+            message = "Server ALL:\n"
             if cpu_usage is not None:
                 message += f"CPU Usage: {cpu_usage:.2f}%\n"
             else:
@@ -401,7 +401,7 @@ async def start_get_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("You have no servers saved.")
         return ConversationHandler.END
     context.user_data["servers"] = servers
-    message = "Select the server number to check health:\n\n"
+    message = "Select the server number to check ALL:\n\n"
     for i, (name, ip, _, _) in enumerate(servers, 1):
         message += f"{i}. {name} ({ip})\n"
     await update.message.reply_text(message)
@@ -444,7 +444,7 @@ async def handle_get_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disk_used = disk_parts[2]
         disk_percent = disk_parts[4]
 
-        message = f"Health for {name}:\n"
+        message = f"ALL for {name}:\n"
         if cpu_usage is not None:
             message += f"CPU Usage: {cpu_usage:.2f}%\n"
         else:
