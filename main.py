@@ -5,15 +5,16 @@ from telegram.ext import (
 )
 from commands.server import (
     start_add_server, get_server_name, get_ip, get_username, get_password,
-    cancel, list_servers, start_get_log, handle_get_log,
+    cancel, list_servers,
     start_delete_server, handle_delete_server,
     start_get_cpu, handle_get_cpu,
     start_get_memory, handle_get_memory,
     start_get_disk, handle_get_disk,
     start_get_ping, handle_get_ping,
+    start_get_health, handle_get_health,
     start_set_default, handle_set_default,
-    SELECT_LOG, SELECT_DELETE, SELECT_CPU, SELECT_MEMORY, SELECT_DISK, SELECT_PING,
-    SELECT_DEFAULT, SERVER_NAME, IP, USERNAME, PASSWORD
+    SELECT_DELETE, SELECT_CPU, SELECT_MEMORY, SELECT_DISK, SELECT_PING,
+    SELECT_HEALTH, SELECT_DEFAULT, SERVER_NAME, IP, USERNAME, PASSWORD
 )
 from commands.config import TELEGRAM_TOKEN
 
@@ -47,7 +48,7 @@ async def handle_inline_buttons(update: Update, context: ContextTypes.DEFAULT_TY
 
     elif query.data == "monitor_servers":
         keyboard = [
-            ["getlog", "cpu", "memory", "disk", "ping"],
+            ["health", "cpu", "memory", "disk", "ping"],
             ["start"]
         ]
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -71,13 +72,13 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
-    getlog_conv = ConversationHandler(
+    health_conv = ConversationHandler(
         entry_points=[
-            CommandHandler("getlog", start_get_log),
-            MessageHandler(filters.TEXT & filters.Regex("^getlog$"), start_get_log)
+            CommandHandler("health", start_get_health),
+            MessageHandler(filters.TEXT & filters.Regex("^health$"), start_get_health)
         ],
         states={
-            SELECT_LOG: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_get_log)],
+            SELECT_HEALTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_get_health)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
@@ -154,7 +155,7 @@ def main():
     app.add_handler(CommandHandler("cancel", cancel))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^cancel$"), cancel))
     app.add_handler(conv_handler)
-    app.add_handler(getlog_conv)
+    app.add_handler(health_conv)
     app.add_handler(delete_conv)
     app.add_handler(cpu_conv)
     app.add_handler(memory_conv)

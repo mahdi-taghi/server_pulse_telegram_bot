@@ -12,10 +12,11 @@ from commands.db import (
 import paramiko
 
 SERVER_NAME, IP, USERNAME, PASSWORD = range(4)
-SELECT_LOG, SELECT_DELETE = range(2)
+SELECT_DELETE = 0
 SELECT_CPU, SELECT_MEMORY, SELECT_DISK = range(4, 7)
 SELECT_DEFAULT = 7
 SELECT_PING = 8
+SELECT_HEALTH = 9
 
 async def start_add_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["user_inputs"] = {}
@@ -65,54 +66,6 @@ async def list_servers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i, (name, ip, username) in enumerate(servers, 1):
         message += f"{i}. Name: {name}\n   IP: {ip}\n   User: {username}\n\n"
     await update.message.reply_text(message[:4000])
-
-async def start_get_log(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    default = get_default_server(user_id)
-    if default:
-        name, ip, username, password = default
-        try:
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(hostname=ip, port=22, username=username, password=password)
-            _, stdout, _ = ssh.exec_command("tail -n 30 /var/log/syslog")
-            output = stdout.read().decode()
-            ssh.close()
-            await update.message.reply_text(f"Logs from {name}:\n{output[:4000]}")
-        except Exception as e:
-            await update.message.reply_text(f"Exception:\n{e}")
-        return ConversationHandler.END
-
-    servers = get_full_servers_by_user(user_id)
-    if not servers:
-        await update.message.reply_text("You have no servers saved.")
-        return ConversationHandler.END
-    context.user_data["servers"] = servers
-    message = "Select the server number to get logs:\n\n"
-    for i, (name, ip, _, _) in enumerate(servers, 1):
-        message += f"{i}. {name} ({ip})\n"
-    await update.message.reply_text(message)
-    return SELECT_LOG
-
-async def handle_get_log(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        index = int(update.message.text) - 1
-        servers = context.user_data.get("servers", [])
-        if index < 0 or index >= len(servers):
-            await update.message.reply_text("Invalid server number.")
-            return ConversationHandler.END
-        name, ip, username, password = servers[index]
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=ip, port=22, username=username, password=password)
-        _, stdout, _ = ssh.exec_command("tail -n 30 /var/log/syslog")
-        output = stdout.read().decode()
-        ssh.close()
-        await update.message.reply_text(f"Logs from {name}:\n{output[:4000]}")
-    except Exception as e:
-        await update.message.reply_text(f"Exception:\n{e}")
-    return ConversationHandler.END
-
 async def start_delete_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     servers = get_full_servers_by_user(user_id)
@@ -390,6 +343,119 @@ async def handle_get_ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Ping results for {ip}:\n{result.stdout}")
         else:
             await update.message.reply_text(f"Error pinging {ip}:\n{result.stderr}")
+    except Exception as e:
+        await update.message.reply_text(f"Exception:\n{e}")
+    return ConversationHandler.END
+async def start_get_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    default = get_default_server(user_id)
+    if default:
+        name, ip, username, password = default
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(hostname=ip, port=22, username=username, password=password)
+            _, cpu_stdout, _ = ssh.exec_command("top -bn1 | grep 'Cpu(s)'")
+            _, mem_stdout, _ = ssh.exec_command("free -m | grep Mem")
+            _, disk_stdout, _ = ssh.exec_command("df -h / | tail -n 1")
+            cpu_line = cpu_stdout.read().decode()
+            mem_line = mem_stdout.read().decode()
+            disk_line = disk_stdout.read().decode()
+            ssh.close()
+
+            import re
+            cpu_match = re.search(r'(\d+\.\d+)\s*id', cpu_line)
+            cpu_usage = None
+            if cpu_match:
+                idle = float(cpu_match.group(1))
+                cpu_usage = 100 - idle
+
+            mem_parts = mem_line.split()
+            mem_total = int(mem_parts[1])
+            mem_used = int(mem_parts[2])
+            mem_percent = (mem_used / mem_total) * 100
+
+            disk_parts = disk_line.split()
+            disk_total = disk_parts[1]
+            disk_used = disk_parts[2]
+            disk_percent = disk_parts[4]
+
+            message = "Server Health:\n"
+            if cpu_usage is not None:
+                message += f"CPU Usage: {cpu_usage:.2f}%\n"
+            else:
+                message += "CPU Usage: N/A\n"
+            message += (
+                f"Memory: {mem_used} MB / {mem_total} MB ({mem_percent:.2f}%)\n"
+            )
+            message += (
+                f"Disk: {disk_used}B / {disk_total}B ({disk_percent})"
+            )
+            await update.message.reply_text(message)
+        except Exception as e:
+            await update.message.reply_text(f"Exception:\n{e}")
+        return ConversationHandler.END
+
+    servers = get_full_servers_by_user(user_id)
+    if not servers:
+        await update.message.reply_text("You have no servers saved.")
+        return ConversationHandler.END
+    context.user_data["servers"] = servers
+    message = "Select the server number to check health:\n\n"
+    for i, (name, ip, _, _) in enumerate(servers, 1):
+        message += f"{i}. {name} ({ip})\n"
+    await update.message.reply_text(message)
+    return SELECT_HEALTH
+
+
+async def handle_get_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        index = int(update.message.text) - 1
+        servers = context.user_data.get("servers", [])
+        if index < 0 or index >= len(servers):
+            await update.message.reply_text("Invalid server number.")
+            return ConversationHandler.END
+        name, ip, username, password = servers[index]
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=ip, port=22, username=username, password=password)
+        _, cpu_stdout, _ = ssh.exec_command("top -bn1 | grep 'Cpu(s)'")
+        _, mem_stdout, _ = ssh.exec_command("free -m | grep Mem")
+        _, disk_stdout, _ = ssh.exec_command("df -h / | tail -n 1")
+        cpu_line = cpu_stdout.read().decode()
+        mem_line = mem_stdout.read().decode()
+        disk_line = disk_stdout.read().decode()
+        ssh.close()
+
+        import re
+        cpu_match = re.search(r'(\d+\.\d+)\s*id', cpu_line)
+        cpu_usage = None
+        if cpu_match:
+            idle = float(cpu_match.group(1))
+            cpu_usage = 100 - idle
+
+        mem_parts = mem_line.split()
+        mem_total = int(mem_parts[1])
+        mem_used = int(mem_parts[2])
+        mem_percent = (mem_used / mem_total) * 100
+
+        disk_parts = disk_line.split()
+        disk_total = disk_parts[1]
+        disk_used = disk_parts[2]
+        disk_percent = disk_parts[4]
+
+        message = f"Health for {name}:\n"
+        if cpu_usage is not None:
+            message += f"CPU Usage: {cpu_usage:.2f}%\n"
+        else:
+            message += "CPU Usage: N/A\n"
+        message += (
+            f"Memory: {mem_used} MB / {mem_total} MB ({mem_percent:.2f}%)\n"
+        )
+        message += (
+            f"Disk: {disk_used}B / {disk_total}B ({disk_percent})"
+        )
+        await update.message.reply_text(message)
     except Exception as e:
         await update.message.reply_text(f"Exception:\n{e}")
     return ConversationHandler.END
